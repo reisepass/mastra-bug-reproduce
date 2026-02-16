@@ -48,11 +48,13 @@ export const useTraces = ({ filters }: TracesFilters) => {
     },
     select: data => {
       const seen = new Set<string>();
-      return data.pages.flatMap(page => page.spans ?? []).filter(span => {
-        if (seen.has(span.traceId)) return false;
-        seen.add(span.traceId);
-        return true;
-      });
+      return data.pages
+        .flatMap(page => page.spans ?? [])
+        .filter(span => {
+          if (seen.has(span.traceId)) return false;
+          seen.add(span.traceId);
+          return true;
+        });
     },
     retry: false,
     refetchInterval: 3000,
