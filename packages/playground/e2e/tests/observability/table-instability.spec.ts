@@ -58,10 +58,25 @@ function makeSpan(id: string, name: string, createdAt: string) {
   };
 }
 
-function tracesResponse(spans: ReturnType<typeof makeSpan>[]) {
+function tracesResponse(spans: ReturnType<typeof makeSpan>[], page = 0) {
   return {
     spans,
-    pagination: { page: 0, perPage: 25, total: spans.length, hasMore: false },
+    pagination: { page, perPage: 25, total: 5, hasMore: false },
+  };
+}
+
+/** Route handler that returns TRACES for page 0 and empty for page > 0 */
+function paginatedHandler(onFetch?: () => void) {
+  return async (route: Route) => {
+    onFetch?.();
+    const url = new URL(route.request().url());
+    const body = route.request().postDataJSON?.() ?? {};
+    const page = Number(url.searchParams.get('page') ?? body?.pagination?.page ?? 0);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(tracesResponse(page === 0 ? TRACES : [], page)),
+    });
   };
 }
 
@@ -96,14 +111,10 @@ test.describe('#13057 — Logs table instability', () => {
    */
   test('rows duplicate after refetch — list grows unboundedly', async ({ page }) => {
     let fetchCount = 0;
-    await page.route('**/api/observability/traces**', async (route: Route) => {
-      fetchCount++;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(tracesResponse(TRACES)),
-      });
-    });
+    await page.route(
+      '**/api/observability/traces**',
+      paginatedHandler(() => fetchCount++),
+    );
 
     await page.goto('/observability');
 
@@ -133,14 +144,10 @@ test.describe('#13057 — Logs table instability', () => {
    */
   test('each trace appears exactly once — no duplicates', async ({ page }) => {
     let fetchCount = 0;
-    await page.route('**/api/observability/traces**', async (route: Route) => {
-      fetchCount++;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(tracesResponse(TRACES)),
-      });
-    });
+    await page.route(
+      '**/api/observability/traces**',
+      paginatedHandler(() => fetchCount++),
+    );
 
     await page.goto('/observability');
 
@@ -173,13 +180,7 @@ test.describe('#13057 — Logs table instability', () => {
    * visually shifts because the underlying array changed.
    */
   test('selected row highlight becomes unreliable after refetch', async ({ page }) => {
-    await page.route('**/api/observability/traces**', async (route: Route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(tracesResponse(TRACES)),
-      });
-    });
+    await page.route('**/api/observability/traces**', paginatedHandler());
 
     await page.goto('/observability');
 

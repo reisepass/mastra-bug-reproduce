@@ -48,20 +48,27 @@ export const useTraces = ({ filters }: TracesFilters) => {
       }
       return lastPageParam + 1;
     },
-    staleTime: 0,
-    gcTime: 0,
     select: data => {
-      return data.pages.flatMap(page => page);
+      const seen = new Set<string>();
+      return data.pages
+        .flatMap(page => page)
+        .filter(trace => {
+          if (seen.has(trace.traceId)) return false;
+          seen.add(trace.traceId);
+          return true;
+        });
     },
     retry: false,
     refetchInterval: 3000,
   });
 
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+
   useEffect(() => {
-    if (isEndOfListInView && query.hasNextPage && !query.isFetchingNextPage) {
-      query.fetchNextPage();
+    if (isEndOfListInView && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
     }
-  }, [isEndOfListInView, query.hasNextPage, query.isFetchingNextPage]);
+  }, [isEndOfListInView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return { ...query, setEndOfListElement };
 };
